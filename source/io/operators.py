@@ -1,8 +1,7 @@
 import os
 import re
 import bpy
-from . import utils
-from .. import common
+from .. import utils
 from bpy_extras.io_utils import ImportHelper
 import json
 
@@ -31,13 +30,26 @@ class STUDIOTOOLS_IO_OT_Export(bpy.types.Operator):
             objects = utils.get_all_objects_from_collection(studiotools.selected_collection)
             for obj in objects:
                 # Add version property if it doesn't exist
-                if "version" not in obj:
-                    obj["version"] = f"{studiotools_io.export_version:03d}"  # Set default version to 1
+                utils.set_primvar(obj, "version", f"{studiotools_io.export_version:03d}")
+                utils.set_primvar(obj, "url", os.path.abspath(usd_filepath))
                 
-                # Add source_path property if it doesn't exist
-                if "url" not in obj:
-                    # You might want to set this to something meaningful, like the original file path
-                    obj["url"] = os.path.abspath(usd_filepath)
+                if obj.type == 'MESH':
+                    subdiv_mods = [mod for mod in obj.modifiers if mod.type == 'SUBSURF']
+                    if subdiv_mods or "_GES" in obj.name:
+                        # Calculate combined levels
+                        total_viewport = 1
+                        total_render = 1
+                        subdiv_type = "CATMULL_CLARK"
+                        for mod in subdiv_mods:
+                            total_viewport *= mod.levels
+                            total_render *= mod.render_levels
+                            subdiv_type = mod.subdivision_type
+                        
+                        subdiv_levels = max(total_viewport, total_render)
+
+                        subdiv_type = "catmullClark" if subdiv_type == "CATMULL_CLARK" else "loop"
+                        
+                        utils.set_primvar(obj, "subdivisionLevels", subdiv_levels)
 
             bpy.ops.wm.usd_export(
                 filepath=usd_filepath,
@@ -53,7 +65,7 @@ class STUDIOTOOLS_IO_OT_Export(bpy.types.Operator):
                 export_hair=studiotools_io.export_usd_curves,
 
                 export_animation=studiotools_io.export_usd_animation,
-                export_subdivision="IGNORE",
+                export_subdivision="BEST_MATCH",
 
                 export_mesh_colors=studiotools_io.export_usd_relative,
 
@@ -73,7 +85,7 @@ class STUDIOTOOLS_IO_OT_Export(bpy.types.Operator):
                 merge_parent_xform=True,
 
                 export_custom_properties=True,
-                custom_properties_namespace="primvars",
+                custom_properties_namespace="",
                 author_blender_name=False,
 
                 convert_world_material=False,
@@ -91,11 +103,9 @@ class STUDIOTOOLS_IO_OT_Export(bpy.types.Operator):
             )
 
             for obj in objects:
-                if "version" in obj:
-                    del obj["version"]
-                if "url" in obj:
-                    del obj["url"]
-
+                utils.remove_primvar(obj, "version")
+                utils.remove_primvar(obj, "url")
+                utils.remove_primvar(obj, "subdivisionLevels")
 
         if (studiotools_io.export_blend):
             blend_filepath = os.path.join(filepath, "scene.blend")
@@ -121,10 +131,8 @@ class STUDIOTOOLS_IO_OT_Export(bpy.types.Operator):
             )
 
             for obj in objects:
-                if "version" in obj:
-                    del obj["version"]
-                if "url" in obj:
-                    del obj["url"]
+                utils.remove_primvar(obj, "version")
+                utils.remove_primvar(obj, "url")
 
         tmp_filepath = context.scene.render.filepath
 
@@ -143,7 +151,7 @@ class STUDIOTOOLS_IO_OT_Export(bpy.types.Operator):
         utils.write_metadata(os.path.join(filepath, "metadata.json"), context)
 
         self.report({"INFO"}, "Export Complete!")
-        common.show_popup("Export Complete!", f"Exported to: {os.path.abspath(filepath)}")
+        utils.show_popup("Export Complete!", f"Exported to: {os.path.abspath(filepath)}")
 
         return {"FINISHED"}
         
@@ -243,7 +251,7 @@ class STUDIOTOOLS_IO_OT_AddImportItem(bpy.types.Operator):
                     import_skeletons=True,
                     import_blendshapes=True,
                     import_points=True,
-                    import_subdiv=True,
+                    import_subdiv=False,
                     support_scene_instancing=True,
                     create_collection=True,
                     read_mesh_uvs=True,
@@ -272,13 +280,40 @@ class STUDIOTOOLS_IO_OT_AddImportItem(bpy.types.Operator):
                         url = os.path.join(metadata.get("asset_url", ""), "stage.usd")
 
                         # Assign to collection
-                        imported_collection["version"] = version
-                        imported_collection["url"] = url
+                        utils.set_primvar(imported_collection, "version", version)
+                        utils.set_primvar(imported_collection, "url", url)
 
                         def assign_properties_to_objects(collection):
                             for obj in collection.objects:
-                                obj["version"] = version
-                                obj["url"] = url
+
+                                if ("_GES" in obj.name or utils.check_primvar(obj.data, "subdivisionScheme")) and obj.type == "MESH":
+                                    has_subdiv = any(mod.type == 'SUBSURF' for mod in obj.modifiers)
+                                    if not has_subdiv:
+                                        subdiv_level = utils.get_primvar(obj.data, "subdivisionLevels", 1) 
+
+                                        # Add new subdivision modifier at end of stack
+                                        subdiv = obj.modifiers.new(name="Subdivision", type='SUBSURF')
+                                        subdiv.levels = max(1, int(subdiv_level/2))  # Set default subdivision level
+                                        subdiv.render_levels = subdiv_level
+                                        subdiv.subdivision_type = "SIMPLE" if utils.get_primvar(obj.data, "subdivisionScheme", "") == "loop" else "CATMULL_CLARK"
+                                        subdiv.show_only_control_edges = True
+                                        print(f"Added Subdivision modifier to: {obj.name}")
+
+                                        # Ensure it's the last modifier in stack
+                                        if obj.modifiers[-1] != subdiv:
+                                            # Move to last position
+                                            for i in range(len(obj.modifiers)):
+                                                if obj.modifiers[i] == subdiv:
+                                                    bpy.ops.object.modifier_move_to_index(
+                                                        {"object": obj},
+                                                        modifier=subdiv.name,
+                                                        index=len(obj.modifiers)-1
+                                                    )
+                                                    break
+
+                                elif ("_PLY" in obj.name) and obj.type == "MESH":
+                                    obj.hide_render = True
+
                                 # Also assign to object data (meshes, curves, etc.)
                                 if obj.data:
                                     obj.data["version"] = version
@@ -303,7 +338,11 @@ class STUDIOTOOLS_IO_OT_RemoveImportItem(bpy.types.Operator):
     bl_label = "Remove Import Item"
     
     index: bpy.props.IntProperty()
-    
+
+    @classmethod
+    def poll(cls, context):
+        return len(context.scene.studiotools_io.import_items) > 0
+
     def execute(self, context):
 
         scene = context.scene
@@ -320,31 +359,7 @@ class STUDIOTOOLS_IO_OT_RemoveImportItem(bpy.types.Operator):
             scene.studiotools_io.active_item_index = max(0, len(items) - 1)
         
         return {'FINISHED'}
-    
-    # primvars: {"name": name, "value": value}
-    def _check_primvar(self, item, primvar):
-        """Check if a Blender object has a matching primvar value in its custom properties.
-        
-        Args:
-            item (bpy.types.Object): Blender object to check
-            primvar (dict): Primvar specification with "name" and "value" keys
-        
-        Returns:
-            bool: True if object has the primvar property and values match
-        """
-        # Validate primvar structure
-        if not isinstance(primvar, dict) or "name" not in primvar:
-            return False
-        
-        primvar_name = primvar["name"]
-        primvar_value = primvar.get("value")
-        
-        # Check if object has this property
-        if not hasattr(item, 'keys') or primvar_name not in item:
-            return False
-        
-        # Compare values - handle Blender ID properties correctly
-        return item[primvar_name] == primvar_value
+
             
     def remove_asset_from_scene(self, context, item):
         if item.type == 'TEX':
@@ -367,18 +382,13 @@ class STUDIOTOOLS_IO_OT_RemoveImportItem(bpy.types.Operator):
                 if bpy.path.abspath(lib.filepath) == lib_path:
                     bpy.data.libraries.remove(lib)
 
-        elif item.type == 'USD':
-            url_primvar = {
-                "name":"url",
-                "value":item.path
-            }
-            
+        elif item.type == 'USD':            
             for coll in bpy.data.collections:
-                if (self._check_primvar(coll, url_primvar)):
+                if (utils.validate_primvar(coll, "url", item.path)):
                     bpy.data.collections.remove(coll)
             
-            for obj in list(coll.objects):
-                if (self._check_primvar(obj, url_primvar)):
+            for obj in bpy.data.objects:
+                if (utils.validate_primvar(obj, "url", item.path)):
                     bpy.data.objects.remove(obj, do_unlink=True)
 
     def _unlink_collection(self, collection):
@@ -400,8 +410,6 @@ class STUDIOTOOLS_IO_OT_RemoveImportItem(bpy.types.Operator):
         # Remove collection if no users left
         if collection.users == 0:
             bpy.data.collections.remove(collection)
-
-
 
 classes = [STUDIOTOOLS_IO_OT_Export, STUDIOTOOLS_IO_OT_AddImportItem, STUDIOTOOLS_IO_OT_RemoveImportItem]
 

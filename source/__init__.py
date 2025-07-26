@@ -12,9 +12,9 @@ bl_info = {
 
 import bpy
 
-from . import io
+from . import io, asset
 
-modules = [io]
+modules = [io, asset]
 
 class STUDIOTOOLS_Properties(bpy.types.PropertyGroup):
     selection_type: bpy.props.EnumProperty(
@@ -23,18 +23,14 @@ class STUDIOTOOLS_Properties(bpy.types.PropertyGroup):
         items = [
             ("COLLECTION", "Collection", "Process a specified collection's hierarchy"),
             ("OBJ", "Selected Objects", "Process selected objects")
-        ]
+        ],
+        default="OBJ"
     )
 
     selected_collection: bpy.props.PointerProperty(
         name="Collection",
         description="Collection to process",
         type=bpy.types.Collection
-    )
-    
-    selected_objects: bpy.props.CollectionProperty(
-        name="Objects",
-        type=bpy.types.PropertyGroup
     )
 
 
