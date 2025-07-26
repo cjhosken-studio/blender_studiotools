@@ -2,12 +2,18 @@ import os
 import re
 import bpy
 from . import utils
+from .. import common
 from bpy_extras.io_utils import ImportHelper
+import json
 
 class STUDIOTOOLS_IO_OT_Export(bpy.types.Operator):
     """Test"""
     bl_idname = "studiotools_io.export"
     bl_label = "Export"
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.studiotools.selected_collection and (context.scene.studiotools_io.export_usd or context.scene.studiotools_io.export_blend)
 
     def execute(self, context):
         scene = context.scene
@@ -20,6 +26,18 @@ class STUDIOTOOLS_IO_OT_Export(bpy.types.Operator):
 
         if (studiotools_io.export_usd):
             usd_filepath = os.path.join(filepath, f"stage.{studiotools_io.export_usd_type.lower()}")
+
+
+            objects = utils.get_all_objects_from_collection(studiotools.selected_collection)
+            for obj in objects:
+                # Add version property if it doesn't exist
+                if "version" not in obj:
+                    obj["version"] = f"{studiotools_io.export_version:03d}"  # Set default version to 1
+                
+                # Add source_path property if it doesn't exist
+                if "url" not in obj:
+                    # You might want to set this to something meaningful, like the original file path
+                    obj["url"] = os.path.abspath(usd_filepath)
 
             bpy.ops.wm.usd_export(
                 filepath=usd_filepath,
@@ -52,6 +70,7 @@ class STUDIOTOOLS_IO_OT_Export(bpy.types.Operator):
                 usdz_downscale_custom_size=studiotools_io.export_usd_textures_usdz_size,
 
                 relative_paths=False,
+                merge_parent_xform=True,
 
                 export_custom_properties=True,
                 custom_properties_namespace="primvars",
@@ -71,34 +90,28 @@ class STUDIOTOOLS_IO_OT_Export(bpy.types.Operator):
                 evaluation_mode="RENDER"
             )
 
+            for obj in objects:
+                if "version" in obj:
+                    del obj["version"]
+                if "url" in obj:
+                    del obj["url"]
+
 
         if (studiotools_io.export_blend):
             blend_filepath = os.path.join(filepath, "scene.blend")
 
-            # Get all objects (including nested collections)
-            all_objects = utils.get_all_objects_from_collection(studiotools.selected_collection)
+            data_blocks = utils.data_from_root_collection(studiotools.selected_collection)
 
-            # Gather all data blocks (objects, meshes, materials, etc.)
-            data_blocks = set()
-            # 1. Add the main collection and its children (if needed)
-            data_blocks.add(studiotools.selected_collection)
-            
-            # Optional: Add all child collections recursively
-            def add_collections_recursive(collection):
-                for child in collection.children:
-                    data_blocks.add(child)
-                    add_collections_recursive(child)
-            
-            add_collections_recursive(studiotools.selected_collection)
-
-            for obj in all_objects:
-                data_blocks.add(obj)
-                if obj.data:
-                    data_blocks.add(obj.data)
-                if hasattr(obj.data, 'materials'):
-                    for mat in obj.data.materials:
-                        if mat:
-                            data_blocks.add(mat)
+            objects = utils.get_all_objects_from_collection(studiotools.selected_collection)
+            for obj in objects:
+                # Add version property if it doesn't exist
+                if "version" not in obj:
+                    obj["version"] = f"{studiotools_io.export_version:03d}"  # Set default version to 1
+                
+                # Add source_path property if it doesn't exist
+                if "url" not in obj:
+                    # You might want to set this to something meaningful, like the original file path
+                    obj["url"] = os.path.abspath(blend_filepath)
 
             bpy.data.libraries.write(
                 filepath=blend_filepath, 
@@ -107,10 +120,33 @@ class STUDIOTOOLS_IO_OT_Export(bpy.types.Operator):
                 compress=True    
             )
 
+            for obj in objects:
+                if "version" in obj:
+                    del obj["version"]
+                if "url" in obj:
+                    del obj["url"]
+
+        tmp_filepath = context.scene.render.filepath
+
+        context.scene.render.filepath = os.path.join(filepath, "thumbnail.png")
+        
+        bpy.ops.render.opengl(
+            animation=False,
+            render_keyed_only=False,
+            sequencer=False,
+            write_still=True,
+            view_context=True
+        )
+
+        context.scene.render.filepath = tmp_filepath
+
+        utils.write_metadata(os.path.join(filepath, "metadata.json"), context)
+
         self.report({"INFO"}, "Export Complete!")
+        common.show_popup("Export Complete!", f"Exported to: {os.path.abspath(filepath)}")
 
         return {"FINISHED"}
-    
+        
 
 # Import Manager Stuff
 
@@ -158,6 +194,11 @@ class STUDIOTOOLS_IO_OT_AddImportItem(bpy.types.Operator):
     
     
     def add_asset_to_scene(self, context, item):
+        metadata_path = os.path.join(os.path.dirname(item.path), "metadata.json")
+        metadata = {}
+        with open(metadata_path) as f:
+            metadata = json.load(f)
+
         try:
             if (item.type == "TEX"):
                 for img in bpy.data.images:
@@ -225,6 +266,29 @@ class STUDIOTOOLS_IO_OT_AddImportItem(bpy.types.Operator):
                     
                     # Rename it to our desired name
                     imported_collection.name = new_collection_name
+
+                    if metadata:
+                        version = metadata.get("version", 1)  # Default to version 1 if not specified
+                        url = os.path.join(metadata.get("asset_url", ""), "stage.usd")
+
+                        # Assign to collection
+                        imported_collection["version"] = version
+                        imported_collection["url"] = url
+
+                        def assign_properties_to_objects(collection):
+                            for obj in collection.objects:
+                                obj["version"] = version
+                                obj["url"] = url
+                                # Also assign to object data (meshes, curves, etc.)
+                                if obj.data:
+                                    obj.data["version"] = version
+                                    obj.data["url"] = url
+                            
+                            # Recursively process child collections
+                            for child_collection in collection.children:
+                                assign_properties_to_objects(child_collection)
+
+                        assign_properties_to_objects(imported_collection)
                 else:
                     print("Warning: USD import didn't create expected collection")
 
@@ -257,6 +321,31 @@ class STUDIOTOOLS_IO_OT_RemoveImportItem(bpy.types.Operator):
         
         return {'FINISHED'}
     
+    # primvars: {"name": name, "value": value}
+    def _check_primvar(self, item, primvar):
+        """Check if a Blender object has a matching primvar value in its custom properties.
+        
+        Args:
+            item (bpy.types.Object): Blender object to check
+            primvar (dict): Primvar specification with "name" and "value" keys
+        
+        Returns:
+            bool: True if object has the primvar property and values match
+        """
+        # Validate primvar structure
+        if not isinstance(primvar, dict) or "name" not in primvar:
+            return False
+        
+        primvar_name = primvar["name"]
+        primvar_value = primvar.get("value")
+        
+        # Check if object has this property
+        if not hasattr(item, 'keys') or primvar_name not in item:
+            return False
+        
+        # Compare values - handle Blender ID properties correctly
+        return item[primvar_name] == primvar_value
+            
     def remove_asset_from_scene(self, context, item):
         if item.type == 'TEX':
             target_path = bpy.path.abspath(item.path)
@@ -279,34 +368,17 @@ class STUDIOTOOLS_IO_OT_RemoveImportItem(bpy.types.Operator):
                     bpy.data.libraries.remove(lib)
 
         elif item.type == 'USD':
-            base_name = item.name  # Get filename without extension
+            url_primvar = {
+                "name":"url",
+                "value":item.path
+            }
             
-            # Remove version suffix (_v001, _v002 etc.) from base name
-            clean_base_name = re.sub(r'_v\d+$', '', base_name)
-            
-            # Find matching collections (case insensitive)
-            collections_to_remove = []
             for coll in bpy.data.collections:
-                if clean_base_name.lower() == coll.name.lower():
-                    collections_to_remove.append(coll)
+                if (self._check_primvar(coll, url_primvar)):
+                    bpy.data.collections.remove(coll)
             
-            # Remove found collections and their contents
-            for coll in collections_to_remove:
-                # Unlink from all scenes first
-                for scene in bpy.data.scenes:
-                    if coll.name in scene.collection.children:
-                        scene.collection.children.unlink(coll)
-                
-                # Recursively remove objects
-                for obj in list(coll.objects):
-                    bpy.data.objects.remove(obj, do_unlink=True)
-                
-                # Remove the collection
-                bpy.data.collections.remove(coll)
-            
-            # Additional cleanup for USD-specific data
-            for obj in bpy.data.objects:
-                if obj.get('usd_filepath') and bpy.path.abspath(obj['usd_filepath']) == lib_path:
+            for obj in list(coll.objects):
+                if (self._check_primvar(obj, url_primvar)):
                     bpy.data.objects.remove(obj, do_unlink=True)
 
     def _unlink_collection(self, collection):

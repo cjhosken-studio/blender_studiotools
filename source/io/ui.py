@@ -53,6 +53,7 @@ class STUDIOTOOLS_IO_PT_ExportPanel(bpy.types.Panel):
 
         box.prop(props, "export_version", text="Version")
         box.prop(props, "export_path", text="Path")
+
         layout.operator("studiotools_io.export")
 
 
