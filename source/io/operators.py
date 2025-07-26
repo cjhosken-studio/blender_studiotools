@@ -21,7 +21,10 @@ class STUDIOTOOLS_IO_OT_Export(bpy.types.Operator):
         studiotools_io = scene.studiotools_io
 
         # Process the filepath
-        filepath = f"{studiotools_io.export_path}_v{studiotools_io.export_version:03d}"
+
+
+        asset_folder = f"{studiotools_io.asset_name}_v{studiotools_io.export_version:03d}"
+        filepath = os.path.join(studiotools_io.export_path, asset_folder)
 
         if (studiotools_io.export_usd):
             usd_filepath = os.path.join(filepath, f"stage.{studiotools_io.export_usd_type.lower()}")

@@ -51,7 +51,9 @@ class STUDIOTOOLS_IO_PT_ExportPanel(bpy.types.Panel):
                     if (props.export_usd_textures_usdz_mode == "CUSTOM"):
                         col.prop(props, "export_usd_textures_usdz_size")
 
-        box.prop(props, "export_version", text="Version")
+        row = box.row()
+        row.prop(props, "asset_name", text="Name")
+        row.prop(props, "export_version", text="Version")
         box.prop(props, "export_path", text="Path")
 
         layout.operator("studiotools_io.export")

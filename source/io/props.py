@@ -1,5 +1,6 @@
 import bpy
-
+import os
+from pathlib import Path
 class STUDIOTOOLS_IO_ImportItem(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty(
         name="Name",
@@ -162,7 +163,14 @@ class STUDIOTOOLS_IO_Properties(bpy.types.PropertyGroup):
     export_path: bpy.props.StringProperty(
         name="Export Path",
         description="Export path",
-        default="./asset"
+        default=os.path.join(Path.home()),
+        subtype="DIR_PATH"
+    )
+
+    asset_name: bpy.props.StringProperty(
+        name="Asset Name",
+        description="",
+        default="asset"
     )
 
     import_items: bpy.props.CollectionProperty(type=STUDIOTOOLS_IO_ImportItem)
