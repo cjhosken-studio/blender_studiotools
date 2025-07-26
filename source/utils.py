@@ -48,13 +48,12 @@ def write_metadata(filepath, context):
     filedir = os.path.abspath(os.path.dirname(filepath))
 
     studiotools_io = context.scene.studiotools_io
-    asset_path = os.path.abspath(studiotools_io.export_path)
     version = studiotools_io.export_version
 
     metadata = {
-        "name": os.path.basename(os.path.dirname(asset_path)),
-        "asset_url": filedir,
+        "name": studiotools_io.asset_name,
         "version": f"{version:03d}",
+        "url": filedir,
         "thumbnail": os.path.join(filedir, "thumbnail.png"),
         "timestamp": datetime.now().isoformat(),
         "system": {
