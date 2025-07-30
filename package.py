@@ -1,7 +1,7 @@
 name = "blender_studiotools"
 version = "1.0.0"
 
-build_command = """"""
+build_command = "python {root}/build.py {install}"
 
-def command():
-    pass
+def commands():
+    env.PYTHONPATH.prepend("{root}/python")
