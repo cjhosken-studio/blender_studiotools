@@ -11,10 +11,11 @@ bl_info = {
 }
 
 import bpy
+from . import qt
 
 from . import io, asset
 
-modules = [io, asset]
+modules = [asset, io]
 
 class STUDIOTOOLS_Properties(bpy.types.PropertyGroup):
     selection_type: bpy.props.EnumProperty(
@@ -39,7 +40,7 @@ class STUDIOTOOLS_PT_MainPanel(bpy.types.Panel):
     bl_idname = "STUDIOTOOLS_PT_MainPanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "Tool"
+    bl_category = "Studio Tools"
     
     def draw(self, context):
         layout = self.layout
@@ -60,6 +61,8 @@ class STUDIOTOOLS_PT_MainPanel(bpy.types.Panel):
 classes = [STUDIOTOOLS_Properties, STUDIOTOOLS_PT_MainPanel]
 
 def register():
+    qt.register()
+
     for cls in classes:
         bpy.utils.register_class(cls)
     
@@ -69,17 +72,12 @@ def register():
         mod.register()
 
 def unregister():
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)
+
     for mod in reversed(modules):
         mod.unregister()
 
     del bpy.types.Scene.studiotools
 
-    for cls in reversed(classes):
-        bpy.utils.unregister_class(cls)
-
-try:
-    unregister()
-except:
-    pass
-
-register()
+    qt.unregister()

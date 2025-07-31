@@ -7,7 +7,7 @@ class STUDIOTOOLS_IO_PT_ExportPanel(bpy.types.Panel):
     bl_idname = "STUDIOTOOLS_IO_PT_Panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "Simple Tab"
+    bl_category = "Studio Tools"
     
     def draw(self, context):
         layout = self.layout

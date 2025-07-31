@@ -7,7 +7,8 @@ class STUDIOTOOLS_ASSET_PT_AssetPanel(bpy.types.Panel):
     bl_idname = "STUDIOTOOLS_ASSET_PT_AssetPanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "Simple Tab"
+    bl_category = "Studio Tools"
+    bl_options = {"DEFAULT_CLOSED"}
     
     def draw(self, context):
         layout = self.layout
@@ -19,12 +20,12 @@ class STUDIOTOOLS_ASSET_PT_AssetPanel(bpy.types.Panel):
 
 class STUDIOTOOLS_ASSET_PT_NamingPanel(bpy.types.Panel):
     """Creates a Panel in the 3D View sidebar"""
-    bl_label = "Import"
+    bl_label = "Naming"
     bl_parent_id = "STUDIOTOOLS_ASSET_PT_AssetPanel"
     bl_idname = "STUDIOTOOLS_ASSET_PT_NamingPanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "Simple Tab"
+    bl_category = "Studio Tools"
     
     def draw(self, context):
         layout = self.layout
@@ -60,7 +61,7 @@ class STUDIOTOOLS_ASSET_PT_ShaderPanel(bpy.types.Panel):
     bl_idname = "STUDIOTOOLS_ASSET_PT_ShaderPanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "Simple Tab"
+    bl_category = "Studio Tools"
 
     def draw(self, context):
         layout = self.layout
