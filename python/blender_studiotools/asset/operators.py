@@ -39,21 +39,13 @@ class STUDIOTOOLS_ASSET_OT_Validate(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         studiotools = context.scene.studiotools
-        if (studiotools.selection_type == "OBJ"):
-            return len(context.selected_objects) > 0
-        else:
-            return studiotools.selected_collection
+        return studiotools.selected_collection
 
     def execute(self, context):
         scene = context.scene
         studiotools = scene.studiotools
 
-        objects = []
-
-        if (studiotools.selection_type == "OBJ"):
-            objects = context.selected_objects
-        else:
-            objects = global_utils.get_all_objects_from_collection(studiotools.selected_collection)
+        objects = global_utils.get_all_objects_from_collection(studiotools.selected_collection)
 
         valid, errors, warnings = asset_utils.validate(objects)
 
@@ -147,7 +139,7 @@ class STUDIOTOOLS_ASSET_OT_AssignShaderTag(bpy.types.Operator):
         for obj in objects:
             global_utils.set_primvar(obj, "shaderTag", studiotools_asset.shader_tags[studiotools_asset.active_shader_tag_index].name, True)
 
-        global_utils.refresh_shader_tags(context) 
+        asset_utils.refresh_shader_tags(context) 
 
         return {"FINISHED"}
     

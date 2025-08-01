@@ -162,7 +162,7 @@ def rename(objects):
             else:
                 pos = "C"
         name = obj.name
-        result, data = utils.validate_name(obj.name)
+        result, data = validate_name(obj.name)
         if (result):
             name = data[1]
         name_counter[name] = name_counter.get(name, 0) + 1
