@@ -10,12 +10,11 @@ bl_info = {
     "category": "3D View"
 }
 
-import bpy
+import bpy # type: ignore
 from . import qt
+from . import topmenu, asset, animation
 
-from . import io, asset
-
-modules = [asset, io]
+modules = [topmenu, asset, animation]
 
 class STUDIOTOOLS_Properties(bpy.types.PropertyGroup):
     selection_type: bpy.props.EnumProperty(
@@ -26,39 +25,15 @@ class STUDIOTOOLS_Properties(bpy.types.PropertyGroup):
             ("OBJ", "Selected Objects", "Process selected objects")
         ],
         default="OBJ"
-    )
+    ) # type: ignore
 
     selected_collection: bpy.props.PointerProperty(
         name="Collection",
         description="Collection to process",
         type=bpy.types.Collection
-    )
+    ) # type: ignore
 
-
-class STUDIOTOOLS_PT_MainPanel(bpy.types.Panel):
-    bl_label = "Studio Tools"
-    bl_idname = "STUDIOTOOLS_PT_MainPanel"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = "Studio Tools"
-    
-    def draw(self, context):
-        layout = self.layout
-        props = context.scene.studiotools
-        
-        # Selection type
-        layout.prop(props, "selection_type", expand=True)
-        
-        # Show appropriate controls based on selection type
-        if props.selection_type == "COLLECTION":
-            row = layout.row()
-            row.prop(props, "selected_collection", text="")
-        else:
-            # For selected objects, you might want to show a list or count
-            layout.label(text=f"{len(context.selected_objects)} objects selected")
-    
-
-classes = [STUDIOTOOLS_Properties, STUDIOTOOLS_PT_MainPanel]
+classes = [STUDIOTOOLS_Properties]
 
 def register():
     qt.register()

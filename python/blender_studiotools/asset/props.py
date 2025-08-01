@@ -1,4 +1,4 @@
-import bpy
+import bpy # type: ignore
 from .. import utils
 
 class STUDIOTOOLS_ASSET_ShaderTag(bpy.types.PropertyGroup):
@@ -6,12 +6,12 @@ class STUDIOTOOLS_ASSET_ShaderTag(bpy.types.PropertyGroup):
         name="Tag Name",
         default="default",
         update=lambda self, context: self._on_name_update(context)
-    )
+    ) # type: ignore
 
     last: bpy.props.StringProperty(
         name="",
         default=""
-    )
+    ) # type: ignore
     
     def _on_name_update(self, context):
         """Handle tag name changes and update associated materials and objects"""
@@ -22,8 +22,6 @@ class STUDIOTOOLS_ASSET_ShaderTag(bpy.types.PropertyGroup):
         if self.name in existing_names:
             self.name = self.last
             return
-        
-        
         
         # Store previous name before updating
         old_material_name = f"{self.last}_SHD"
@@ -62,7 +60,7 @@ class STUDIOTOOLS_ASSET_Properties(bpy.types.PropertyGroup):
         name="Override Existing Names",
         description="",
         default=True
-    )
+    ) # type: ignore
 
     name_pos: bpy.props.EnumProperty(
         name="Positional Prefix",
@@ -74,13 +72,13 @@ class STUDIOTOOLS_ASSET_Properties(bpy.types.PropertyGroup):
             ("T", "T", "Top"),
             ("B", "B", "Bottom")
         ]
-    )
+    ) # type: ignore
 
     name_pos_auto: bpy.props.BoolProperty(
         name="Auto Positional Prefix",
         description="",
         default=True
-    )
+    ) # type: ignore
 
     name_pos_splitaxis: bpy.props.EnumProperty(
         name="Split Axis",
@@ -91,21 +89,34 @@ class STUDIOTOOLS_ASSET_Properties(bpy.types.PropertyGroup):
             ("2", "Z-Axis", ""),
         ],
         default="0"
-    )
+    ) # type: ignore
 
     name_pos_splittolerance: bpy.props.FloatProperty(
         name="Split Tolerance",
         description="",
         default=0.0
-    )
+    ) # type: ignore
 
     shader_tag_name: bpy.props.StringProperty(
         name="Tag Name",
         default="tag"
-    )
+    ) # type: ignore
 
-    shader_tags: bpy.props.CollectionProperty(type=STUDIOTOOLS_ASSET_ShaderTag)
-    active_shader_tag_index: bpy.props.IntProperty()
+    shader_tags: bpy.props.CollectionProperty(type=STUDIOTOOLS_ASSET_ShaderTag) # type: ignore
+    active_shader_tag_index: bpy.props.IntProperty() # type: ignore
+
+    export_path: bpy.props.StringProperty(
+        name="Export Path",
+        description="Export path",
+        default="./",
+        subtype="DIR_PATH"
+    ) # type: ignore
+
+    asset_name: bpy.props.StringProperty(
+        name="Asset Name",
+        description="",
+        default="asset"
+    ) # type: ignore
 
 classes = [STUDIOTOOLS_ASSET_ShaderTag, STUDIOTOOLS_ASSET_Properties]
 

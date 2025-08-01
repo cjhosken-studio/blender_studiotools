@@ -1,34 +1,9 @@
-import bpy
-import bmesh
-import random
-from .. import utils
-
-class STUDIOTOOLS_ASSET_OT_AddShaderTag(bpy.types.Operator):
-    bl_idname = "studiotools_asset.add_shadertag"
-    bl_label = "Add Shader Tag"
-    
-    def execute(self, context):
-        scene = context.scene
-        
-        return {'FINISHED'}
-    
-class STUDIOTOOLS_ASSET_OT_RemoveShaderTag(bpy.types.Operator):
-    bl_idname = "studiotools_asset.remove_shadertag"
-    bl_label = "Remove Shader Tag"
-    
-    def execute(self, context):
-        scene = context.scene
-        
-        return {'FINISHED'}
-
-class STUDIOTOOLS_ASSET_OT_ReloadShaderTags(bpy.types.Operator):
-    bl_idname = "studiotools_asset.reload_shadertags"
-    bl_label = "Reload Shader Tags"
-    
-    def execute(self, context):
-        scene = context.scene
-        
-        return {'FINISHED'}
+import bpy # type: ignore
+import re
+import os
+from . import utils as asset_utils
+from .. import utils as global_utils
+from .. import io
 
 class STUDIOTOOLS_ASSET_OT_Rename(bpy.types.Operator):
     bl_idname = "studiotools_asset.rename"
@@ -45,82 +20,15 @@ class STUDIOTOOLS_ASSET_OT_Rename(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene
         studiotools = scene.studiotools
-        studiotools_asset = scene.studiotools_asset
 
         objects = []
 
         if (studiotools.selection_type == "OBJ"):
             objects = context.selected_objects
         else:
-            objects = utils.get_all_objects_from_collection(studiotools.selected_collection)
+            objects = global_utils.get_all_objects_from_collection(studiotools.selected_collection)
 
-        name_counter = {}
-
-        for obj in objects:
-
-            pos = studiotools_asset.name_pos
-
-            if (studiotools_asset.name_pos_auto):
-                p = obj.location[int(studiotools_asset.name_pos_splitaxis)]
-                if abs(p) > studiotools_asset.name_pos_splittolerance:
-                    pos = "L" if p > 0 else "R"
-                else:
-                    pos = "C"
-
-            name = obj.name
-
-            result, data = utils.validate_name(obj.name)
-            if (result):
-                name = data[1]
-
-            name_counter[name] = name_counter.get(name, 0) + 1
-            variant = f"{name_counter[name]:04d}"  # Format as 4-digit number
-
-            if obj.type == "MESH":
-                ext = "GEP"
-
-                for mod in obj.modifiers:
-                    if mod.type == "SUBSURF":
-                        ext = "GES"
-                        break
-                
-                if obj.hide_render:
-                    ext = "PLY"
-
-            elif obj.type in ["CURVE", "CURVES"]:
-                ext = "CRV"
-            elif obj.type == "FONT":
-                ext = "TXT"
-            elif obj.type == "POINTCLOUD":
-                ext = "PNT"
-            elif obj.type == "VOLUME":
-                ext = "VOL"
-            elif obj.type == "GREASESPENCIL":
-                ext = "GSP"
-            elif obj.type in ["SURFACE", "META"]:
-                ext == "NUB"
-            elif obj.type == "ARMATURE":
-                ext == "RIG"
-            elif obj.type == "LATTICE":
-                ext == "LAT"
-            elif obj.type in ["LIGHT", "LIGHT_PROBE"]:
-                ext = "LGT"
-            elif obj.type == "CAMERA":
-                ext = "CAM"
-            elif obj.type == "SPEAKER":
-                ext = "AUD"
-            elif obj.type == "EMPTY":
-                ext = "LOC"
-            else:
-                ext = "UNK"
-
-            if result and studiotools_asset.name_override:
-                obj.name = f"{pos}_{name}_{variant}_{ext}"
-                obj.data.name = obj.name
-            else:
-                if not result:
-                    obj.name = f"{pos}_{name}_{variant}_{ext}"
-                    obj.data.name = obj.name
+        asset_utils.rename(objects)
                 
         return {'FINISHED'}
 
@@ -145,70 +53,16 @@ class STUDIOTOOLS_ASSET_OT_Validate(bpy.types.Operator):
         if (studiotools.selection_type == "OBJ"):
             objects = context.selected_objects
         else:
-            objects = utils.get_all_objects_from_collection(studiotools.selected_collection)
+            objects = global_utils.get_all_objects_from_collection(studiotools.selected_collection)
 
-        num_errors = 0
-        num_warnings = 0
+        valid, errors, warnings = asset_utils.validate(objects)
 
-        print("\nValidating Objects...\n")
-
-        for obj in objects:
-            validation_error_prefix = f"ERROR ({obj.name}):"
-            validation_warning_prefix = f"WARNING ({obj.name})"
-
-            result, data = utils.validate_name(obj.name)
-            if not result:
-                num_errors += 1
-                print(validation_error_prefix, data)
-
-            if any(abs(s-1.0) > 0.001 for s in obj.scale):
-                num_warnings += 1
-                print(validation_warning_prefix, "Scale is not uniformly 1. Apply scale to fix.")
-
-            if obj.type == 'MESH':
-                # Check for invalid geometry
-                mesh = obj.data
-                if not mesh.polygons and not mesh.edges:
-                    num_errors += 1
-                    print(validation_error_prefix, "Mesh has no valid geometry.")
-
-                # Check for ngons
-                if any(len(p.vertices) > 4 for p in mesh.polygons):
-                    num_errors += 1
-                    print(validation_error_prefix, "Mesh contains ngons (faces with >4 vertices).")
-
-                # Check for non-manifold geometry
-                bm = bmesh.new()
-                bm.from_mesh(mesh)
-                if any(e for e in bm.edges if not e.is_manifold):
-                    num_errors += 1
-                    print(validation_error_prefix, "Mesh has non-manifold edges.")
-                bm.free()
-
-                subdiv_mods = [mod for mod in obj.modifiers if mod.type == 'SUBSURF']
-                if subdiv_mods:
-                    last_mod = obj.modifiers[-1]
-                    if not subdiv_mods[-1] == last_mod:
-                        num_warnings += 1
-                        print(validation_warning_prefix, 
-                             f"Subdivision modifier '{subdiv_mods[-1].name}' is overshadowed by other modifiers. This may be applied in USD exports.")
-
-        print("")
-        if num_errors:
-            print("Validation: FAILED")
-            print(f"Objects Checked: {len(objects)}")
-            print(f"Errors: {num_errors}")
-            print(f"Warnings: {num_warnings}")
-            utils.show_popup("Validation Failed!", f"Validation failed with {num_errors} errors and {num_warnings} warnings. See the console for a full error list.", "ERROR")
+        if valid:   
+            global_utils.show_popup("Validation Passed!", f"Validation passed with {warnings} warnings. You are free to export!")
         else:
-            utils.show_popup("Validation Passed!", f"Validation passed with {num_warnings} warnings. You are free to export!")
-            print("Validation: PASSED")
-            print(f"Objects Checked: {len(objects)}")
-            print(f"Warnings: {num_warnings}")
-        
-        return {'FINISHED'}
+            global_utils.show_popup("Validation Failed!", f"Validation failed with {errors} errors and {warnings} warnings. See the console for a full error list.", "ERROR")
 
-
+        return { "FINISHED" }
 
 
 class STUDIOTOOLS_ASSET_OT_AddShaderTag(bpy.types.Operator):
@@ -225,14 +79,14 @@ class STUDIOTOOLS_ASSET_OT_AddShaderTag(bpy.types.Operator):
             existing_names = [tag.name for tag in studiotools_asset.shader_tags]
             
             # Generate unique name
-            unique_name = utils.find_unique_name(studiotools_asset.shader_tag_name, existing_names)
+            unique_name = asset_utils.find_unique_name(studiotools_asset.shader_tag_name, existing_names)
             
             # Add new tag with unique name
             tag = studiotools_asset.shader_tags.add()
             tag.name = unique_name
             tag.last = unique_name
 
-        utils.refresh_shader_tags(context)
+        asset_utils.refresh_shader_tags(context)
 
         return {'FINISHED'}
 
@@ -243,7 +97,7 @@ class STUDIOTOOLS_ASSET_OT_RemoveShaderTag(bpy.types.Operator):
     bl_description = "Remove this shader tag from the object"
     bl_options = {'REGISTER', 'UNDO'}
 
-    index: bpy.props.IntProperty()
+    index: bpy.props.IntProperty() # type: ignore
 
     def execute(self, context):
         studiotools_asset = context.scene.studiotools_asset
@@ -251,13 +105,13 @@ class STUDIOTOOLS_ASSET_OT_RemoveShaderTag(bpy.types.Operator):
             
         for obj in bpy.data.objects:
             print("OBJECT TAG:", tag_name)
-            if utils.validate_primvar(obj, "shaderTag", tag_name):
+            if global_utils.validate_primvar(obj, "shaderTag", tag_name):
                 print("SHADER_TAG", obj["shaderTag"])
-                utils.remove_primvar(obj, "shaderTag")
+                global_utils.remove_primvar(obj, "shaderTag")
 
         studiotools_asset.shader_tags.remove(self.index)
 
-        utils.refresh_shader_tags(context)
+        asset_utils.refresh_shader_tags(context)
         
         return {'FINISHED'}
 
@@ -288,12 +142,12 @@ class STUDIOTOOLS_ASSET_OT_AssignShaderTag(bpy.types.Operator):
         if (studiotools.selection_type == "OBJ"):
             objects = context.selected_objects
         else:
-            objects = utils.get_all_objects_from_collection(studiotools.selected_collection)
+            objects = global_utils.get_all_objects_from_collection(studiotools.selected_collection)
 
         for obj in objects:
-            utils.set_primvar(obj, "shaderTag", studiotools_asset.shader_tags[studiotools_asset.active_shader_tag_index].name, True)
+            global_utils.set_primvar(obj, "shaderTag", studiotools_asset.shader_tags[studiotools_asset.active_shader_tag_index].name, True)
 
-        utils.refresh_shader_tags(context) 
+        global_utils.refresh_shader_tags(context) 
 
         return {"FINISHED"}
     
@@ -305,10 +159,57 @@ class STUDIOTOOLS_ASSET_OT_RefreshShaderTags(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):    
-        utils.refresh_shader_tags(context)        
+        asset_utils.refresh_shader_tags(context)        
         return {'FINISHED'}
+    
 
-classes = [STUDIOTOOLS_ASSET_OT_Validate, STUDIOTOOLS_ASSET_OT_Rename, STUDIOTOOLS_ASSET_OT_AddShaderTag, STUDIOTOOLS_ASSET_OT_RemoveShaderTag, STUDIOTOOLS_ASSET_OT_RefreshShaderTags, STUDIOTOOLS_ASSET_OT_AssignShaderTag]
+class STUDIOTOOLS_ASSET_OT_Export(bpy.types.Operator):
+    bl_idname = "studiotools_asset.export"
+    bl_label = "Export Asset"
+    bl_description = "Export Asset"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        studiotools = context.scene.studiotools
+        return studiotools.selected_collection
+
+    def execute(self, context):
+        studiotools = context.scene.studiotools
+        studiotools_asset = context.scene.studiotools_asset
+
+        version = "_v001"
+        blend_filepath = bpy.data.filepath
+
+        if blend_filepath:
+            base_path, ext = os.path.splitext(blend_filepath)
+
+            version_match = re.search(r'(_v|_)(\d+)$', base_path)
+            if version_match:
+                version = version_match.group(0)
+        else:
+            global_utils.save_version()
+
+        asset_folder = f"{studiotools_asset.asset_name}{version}"
+        filepath = os.path.abspath(os.path.join(studiotools_asset.export_path, asset_folder))
+
+        success = io.export(filepath=filepath, root_collection=studiotools.selected_collection, export_asset=True)   
+        if success:
+            global_utils.show_popup("Export Complete!", f"Asset exported to {filepath}/.", "INFO")
+            global_utils.save_version()
+
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        studiotools = context.scene.studiotools
+        valid, errors, warnings = asset_utils.validate(studiotools.selected_collection.all_objects)
+
+        if valid:
+            self.execute(context)
+        else:
+            return context.window_manager.invoke_confirm(self, event, title="Validation Error", message=f"Validation failed with {errors} errors and {warnings} warnings (see console). Are you sure you want to export?")
+
+classes = [STUDIOTOOLS_ASSET_OT_Validate, STUDIOTOOLS_ASSET_OT_Rename, STUDIOTOOLS_ASSET_OT_AddShaderTag, STUDIOTOOLS_ASSET_OT_RemoveShaderTag, STUDIOTOOLS_ASSET_OT_RefreshShaderTags, STUDIOTOOLS_ASSET_OT_AssignShaderTag, STUDIOTOOLS_ASSET_OT_Export]
 
 def register():
     for cls in classes:
