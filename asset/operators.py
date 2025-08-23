@@ -168,7 +168,6 @@ class STUDIOTOOLS_ASSET_OT_Export(bpy.types.Operator):
 
     def execute(self, context):
         studiotools = context.scene.studiotools
-        studiotools_asset = context.scene.studiotools_asset
 
         version = "_v001"
         blend_filepath = bpy.data.filepath
@@ -182,12 +181,17 @@ class STUDIOTOOLS_ASSET_OT_Export(bpy.types.Operator):
         else:
             global_utils.save_version()
 
-        asset_folder = f"{studiotools_asset.asset_name}{version}"
-        filepath = os.path.abspath(os.path.join(studiotools_asset.export_path, asset_folder))
+        current_file = bpy.data.filepath
+        task = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+        versions_folder = os.path.join(task, "versions")
+
+        asset_folder = f"{os.path.basename(task)}{version}"
+    
+        filepath = os.path.abspath(os.path.join(versions_folder, asset_folder))
 
         success = io.export(filepath=filepath, root_collection=studiotools.selected_collection, export_asset=True)   
         if success:
-            global_utils.show_popup("Export Complete!", f"Asset exported to {filepath}/.", "INFO")
+            global_utils.show_popup("Export Complete!", f"Asset exported to {filepath}", "INFO")
             global_utils.save_version()
 
         return {'FINISHED'}
@@ -197,7 +201,7 @@ class STUDIOTOOLS_ASSET_OT_Export(bpy.types.Operator):
         valid, errors, warnings = asset_utils.validate(studiotools.selected_collection.all_objects)
 
         if valid:
-            self.execute(context)
+            return self.execute(context)
         else:
             return context.window_manager.invoke_confirm(self, event, title="Validation Error", message=f"Validation failed with {errors} errors and {warnings} warnings (see console). Are you sure you want to export?")
 

@@ -104,13 +104,8 @@ class STUDIOTOOLS_ASSET_PT_ExportPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         studiotools = context.scene.studiotools
-        studiotools_asset = context.scene.studiotools_asset
-        header = layout.label(text="Export")
         
         layout.prop(studiotools, "selected_collection", text="Root")
-        row = layout.row()
-        row.prop(studiotools_asset, "asset_name", text="Name")
-        row.label(text=global_utils.get_current_version())
 
         label = "Objects" if studiotools.selection_type == "OBJ" else "Collection"
         layout.operator("studiotools_asset.validate", text=f"Validate {label}", icon='FAKE_USER_ON')

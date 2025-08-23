@@ -1,0 +1,2 @@
+import blender_studiotools
+blender_studiotools.register()

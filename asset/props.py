@@ -105,19 +105,6 @@ class STUDIOTOOLS_ASSET_Properties(bpy.types.PropertyGroup):
     shader_tags: bpy.props.CollectionProperty(type=STUDIOTOOLS_ASSET_ShaderTag) # type: ignore
     active_shader_tag_index: bpy.props.IntProperty() # type: ignore
 
-    export_path: bpy.props.StringProperty(
-        name="Export Path",
-        description="Export path",
-        default="./",
-        subtype="DIR_PATH"
-    ) # type: ignore
-
-    asset_name: bpy.props.StringProperty(
-        name="Asset Name",
-        description="",
-        default="asset"
-    ) # type: ignore
-
 classes = [STUDIOTOOLS_ASSET_ShaderTag, STUDIOTOOLS_ASSET_Properties]
 
 def register():
