@@ -1,8 +1,12 @@
+import os
 import bpy # type: ignore
 from .. import utils
 
 class STUDIOTOOLS_ANIMATION_Properties(bpy.types.PropertyGroup):
-    pass
+    animation_name: bpy.props.StringProperty(
+        name="Animation Name",
+        default=os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(bpy.data.filepath))))
+    ) # type: ignore
 
 classes = [STUDIOTOOLS_ANIMATION_Properties]
 

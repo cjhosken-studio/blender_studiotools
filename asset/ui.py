@@ -48,7 +48,7 @@ class STUDIOTOOLS_ASSET_PT_NamingPanel(bpy.types.Panel):
 
         layout.prop(studiotools_asset, "name_override", text="Override Names")
         label = "Objects" if scene.studiotools.selection_type == "OBJ" else "Collection"
-        layout.operator("studiotools_asset.rename", icon='ADD', text=f"Rename {label}")
+        layout.operator("studiotools_asset.rename", icon='GREASEPENCIL', text=f"Rename {label}")
 
 class STUDIOTOOLS_ASSET_UL_ShaderTagList(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):

@@ -26,8 +26,10 @@ class STUDIOTOOLS_ANIMATION_PT_ExportPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         studiotools = context.scene.studiotools
+        studiotools_animation = context.scene.studiotools_animation
 
         layout.prop(studiotools, "selected_collection", text="Root")
+        layout.prop(studiotools_animation, "animation_name", text="Name")
         layout.operator("studiotools_animation.export", text="Export Asset", icon='EXPORT')
 
 

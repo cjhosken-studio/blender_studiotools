@@ -107,7 +107,7 @@ class STUDIOTOOLS_ASSET_Properties(bpy.types.PropertyGroup):
     active_shader_tag_index: bpy.props.IntProperty() # type: ignore
     
     asset_name: bpy.props.StringProperty(
-        name="Asset name",
+        name="Asset Name",
         default=os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(bpy.data.filepath))))
     ) # type: ignore
 

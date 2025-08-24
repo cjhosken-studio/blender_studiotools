@@ -36,7 +36,7 @@ class STUDIOTOOLS_ANIMATION_OT_Export(bpy.types.Operator):
         task = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
         versions_folder = os.path.join(task, "versions")
         
-        asset_folder = f"{os.path.basename(task)}{version}"
+        asset_folder = f"{studiotools_animation.animation_name}{version}"
         filepath = os.path.abspath(os.path.join(versions_folder, asset_folder))
 
         success = io.export(filepath=filepath, root_collection=studiotools.selected_collection, export_animation=True)   
