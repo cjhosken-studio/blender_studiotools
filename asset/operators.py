@@ -170,23 +170,17 @@ class STUDIOTOOLS_ASSET_OT_Export(bpy.types.Operator):
         studiotools = context.scene.studiotools
         studiotools_asset = context.scene.studiotools_asset
 
-        version = "_v001"
         blend_filepath = bpy.data.filepath
 
-        if blend_filepath:
-            base_path, ext = os.path.splitext(blend_filepath)
-
-            version_match = re.search(r'(_v|_)(\d+)$', base_path)
-            if version_match:
-                version = version_match.group(0)
-        else:
+        if not blend_filepath:
             global_utils.save_version()
+            
+        version = global_utils.get_current_version()
 
-        current_file = bpy.data.filepath
-        task = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+        task = os.path.dirname(os.path.dirname(os.path.dirname(blend_filepath)))
         versions_folder = os.path.join(task, "versions")
 
-        asset_folder = f"{studiotools_asset.asset_name}{version}"
+        asset_folder = f"{studiotools_asset.asset_name}_v{version:03d}"
     
         filepath = os.path.abspath(os.path.join(versions_folder, asset_folder))
 

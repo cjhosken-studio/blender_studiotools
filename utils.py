@@ -3,40 +3,55 @@ import os
 import re
 
 
-def get_current_version():
+def get_latest_version():
     filepath = bpy.data.filepath
-
-    if filepath:
-        base_path, ext = os.path.splitext(filepath)
-        version_match = re.search(r'(_v|_)(\d+)$', base_path)
-        if version_match:
-            return version_match.group(0)
-
-    return "_v001"
-
+    
+    wip_folder = os.path.dirname(os.path.dirname(filepath))
+    version_pattern = re.compile(r'_v(\d+)$', re.IGNORECASE)
+    
+    max_version = 0
+    
+    for app_folder in os.listdir(wip_folder):
+        app_folder_path = os.path.join(wip_folder, app_folder)
+        
+        if not os.path.isdir(app_folder_path):
+            continue
+        
+        for app in os.listdir(os.path.join(wip_folder, app_folder)):
+            name, ext = os.path.splitext(app)
+            match = version_pattern.search(name)
+            if match:
+                ver = int(match.group(1))
+                if ver > max_version:
+                    max_version = ver
+            # check for _v***
+            # return the newest version
+            
+    return max_version
 
 def save_version():
     filepath = bpy.data.filepath
-    
-    if not filepath:
-        default_path = os.path.abspath("untitled_v001.blend")
-        bpy.ops.wm.save_as_mainfile(filepath=default_path, compress=True)
-        return
-    
     base_path, ext = os.path.splitext(filepath)
+    base_name = os.path.basename(base_path).split("_v")[0]
     
-    version_match = re.search(r'(_v|_)(\d+)$', base_path)
-    
-    if version_match:
-        version_num = int(version_match.group(2)) + 1
-        prefix = version_match.group(1)
-        new_base = re.sub(r'(_v|_)\d+$', f'{prefix}{version_num:03d}', base_path)
-    else:
-        new_base = f"{base_path}_v002"
-    
+    latest_version = get_latest_version()
+    next_version = latest_version + 1
+        
+    new_base = os.path.join(os.path.dirname(base_path), f"{base_name}_v{next_version:03d}")
     new_filepath = f"{new_base}{ext}"
-    
     bpy.ops.wm.save_as_mainfile(filepath=new_filepath, compress=True)
+
+def get_current_version():
+    filepath = bpy.data.filepath
+    if not filepath:
+        return 0
+
+    base_path = os.path.splitext(os.path.basename(filepath))[0]  # just the filename without extension
+    version_match = re.search(r'_v(\d+)$', base_path)
+    if version_match:
+        return int(version_match.group(1))
+    
+    return 0
 
 def get_all_objects_from_collection(collection, include_children=True):
     objects = []
