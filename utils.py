@@ -38,7 +38,6 @@ def save_version():
     
     bpy.ops.wm.save_as_mainfile(filepath=new_filepath, compress=True)
 
-
 def get_all_objects_from_collection(collection, include_children=True):
     objects = []
     objects.extend(collection.objects)

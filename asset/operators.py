@@ -168,6 +168,7 @@ class STUDIOTOOLS_ASSET_OT_Export(bpy.types.Operator):
 
     def execute(self, context):
         studiotools = context.scene.studiotools
+        studiotools_asset = context.scene.studiotools_asset
 
         version = "_v001"
         blend_filepath = bpy.data.filepath
@@ -185,7 +186,7 @@ class STUDIOTOOLS_ASSET_OT_Export(bpy.types.Operator):
         task = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
         versions_folder = os.path.join(task, "versions")
 
-        asset_folder = f"{os.path.basename(task)}{version}"
+        asset_folder = f"{studiotools_asset.asset_name}{version}"
     
         filepath = os.path.abspath(os.path.join(versions_folder, asset_folder))
 

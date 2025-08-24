@@ -1,5 +1,6 @@
 import bpy # type: ignore
 import os
+import yaml
 from . import utils
 
 def export_usd(filepath="./stage.usd", root_collection=None, export_asset=False, export_animation=False, include_materials=False, include_rigs=False, pack_textures=False):    
@@ -62,12 +63,12 @@ def export_blend(filepath="./scene.blend", root_collection=None):
     
     return True
 
-def export(filepath="./", root_collection=None, export_asset=False, export_animation=False, thumbnail=False):
+def export(filepath="./", root_collection=None, export_asset=False, export_animation=False, thumbnail=True):
     if root_collection:
-        success = export_usd(filepath=os.path.join(os.path.abspath(filepath), "stage.usd"), root_collection=root_collection, export_asset=export_asset, export_animation=export_animation)
+        usd_path = os.path.join(os.path.abspath(filepath), "stage.usd")
+        success = export_usd(filepath=usd_path, root_collection=root_collection, export_asset=export_asset, export_animation=export_animation)
         if success:
             success = export_blend(filepath=os.path.join(os.path.abspath(filepath), "scene.blend"), root_collection=root_collection)
-            return success
         
         if success:
             if thumbnail:
@@ -84,6 +85,15 @@ def export(filepath="./", root_collection=None, export_asset=False, export_anima
                 )
 
                 bpy.context.scene.render.filepath = tmp_filepath
+                        
+            metadata = {
+                "root": usd_path,
+                "type": "usd",
+                "version": int(utils.get_current_version().replace("_v", ""))
+            }
+            
+            with open(os.path.join(os.path.abspath(filepath), "metadata.yaml"), "w") as f:
+                yaml.safe_dump(metadata, f, sort_keys=False)
 
             return True
 

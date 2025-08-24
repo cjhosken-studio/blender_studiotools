@@ -1,4 +1,5 @@
 import bpy # type: ignore
+import os
 from .. import utils
 
 class STUDIOTOOLS_ASSET_ShaderTag(bpy.types.PropertyGroup):
@@ -104,6 +105,11 @@ class STUDIOTOOLS_ASSET_Properties(bpy.types.PropertyGroup):
 
     shader_tags: bpy.props.CollectionProperty(type=STUDIOTOOLS_ASSET_ShaderTag) # type: ignore
     active_shader_tag_index: bpy.props.IntProperty() # type: ignore
+    
+    asset_name: bpy.props.StringProperty(
+        name="Asset name",
+        default=os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(bpy.data.filepath))))
+    ) # type: ignore
 
 classes = [STUDIOTOOLS_ASSET_ShaderTag, STUDIOTOOLS_ASSET_Properties]
 
