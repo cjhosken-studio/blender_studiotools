@@ -5,7 +5,13 @@ from .. import utils
 class STUDIOTOOLS_ANIMATION_Properties(bpy.types.PropertyGroup):
     animation_name: bpy.props.StringProperty(
         name="Animation Name",
-        default=os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(bpy.data.filepath))))
+        default="animation"
+    ) # type: ignore
+
+    export_path: bpy.props.StringProperty(
+        name="Export Path",
+        subtype='DIR_PATH',
+        default="//animations"
     ) # type: ignore
 
 classes = [STUDIOTOOLS_ANIMATION_Properties]

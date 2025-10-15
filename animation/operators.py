@@ -26,12 +26,9 @@ class STUDIOTOOLS_ANIMATION_OT_Export(bpy.types.Operator):
             global_utils.save_version()
             
         version = global_utils.get_current_version()
-
-        task = os.path.dirname(os.path.dirname(os.path.dirname(blend_filepath)))
-        versions_folder = os.path.join(task, "versions")
         
         asset_folder = f"{studiotools_animation.animation_name}_v{version:03d}"
-        filepath = os.path.abspath(os.path.join(versions_folder, asset_folder))
+        filepath = os.path.abspath(os.path.join(studiotools_animation.export_path, asset_folder))
 
         success = io.export(filepath=filepath, root_collection=studiotools.selected_collection, export_animation=True)   
         if success:

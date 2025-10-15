@@ -108,7 +108,13 @@ class STUDIOTOOLS_ASSET_Properties(bpy.types.PropertyGroup):
     
     asset_name: bpy.props.StringProperty(
         name="Asset Name",
-        default=os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(bpy.data.filepath))))
+        default="asset"
+    ) # type: ignore
+
+    export_path: bpy.props.StringProperty(
+        name="Export Path",
+        subtype='DIR_PATH',
+        default="//assets"
     ) # type: ignore
 
 classes = [STUDIOTOOLS_ASSET_ShaderTag, STUDIOTOOLS_ASSET_Properties]

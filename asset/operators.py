@@ -117,7 +117,13 @@ class STUDIOTOOLS_ASSET_OT_AssignShaderTag(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        studiotools = context.scene.studiotools
+        scene = context.scene
+        studiotools = scene.studiotools
+        studiotools_asset = scene.studiotools_asset
+
+        if (len(studiotools_asset.shader_tags) == 0):
+            return False
+
         if (studiotools.selection_type == "OBJ"):
             return len(context.selected_objects) > 0
         else:
@@ -177,12 +183,9 @@ class STUDIOTOOLS_ASSET_OT_Export(bpy.types.Operator):
             
         version = global_utils.get_current_version()
 
-        task = os.path.dirname(os.path.dirname(os.path.dirname(blend_filepath)))
-        versions_folder = os.path.join(task, "versions")
-
         asset_folder = f"{studiotools_asset.asset_name}_v{version:03d}"
     
-        filepath = os.path.abspath(os.path.join(versions_folder, asset_folder))
+        filepath = os.path.abspath(os.path.join(studiotools_asset.export_path, asset_folder))
 
         success = io.export(filepath=filepath, root_collection=studiotools.selected_collection, export_asset=True)   
         if success:

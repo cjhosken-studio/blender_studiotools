@@ -89,7 +89,7 @@ def export(filepath="./", root_collection=None, export_asset=False, export_anima
             metadata = {
                 "root": usd_path,
                 "type": "usd",
-                "version": int(utils.get_current_version().replace("_v", ""))
+                "version": utils.get_current_version()
             }
             
             with open(os.path.join(os.path.abspath(filepath), "metadata.yaml"), "w") as f:

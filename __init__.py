@@ -2,7 +2,7 @@ bl_info = {
     "name": "Blender Studio Tools",
     "author": "Christopher Hosken",
     "version": (1, 0, 0),
-    "blender": (4, 5, 0),
+    "blender": (4, 5, 4),
     "location": "View3D > Sidebar > StudioTools",
     "description": "",
     "warning": "",
