@@ -1,5 +1,6 @@
 import bpy # type: ignore
 from .. import utils as global_utils
+import os
 
 class STUDIOTOOLS_ANIMATION_PT_AnimationPanel(bpy.types.Panel):
     """Creates a Panel in the 3D View sidebar"""
@@ -30,7 +31,9 @@ class STUDIOTOOLS_ANIMATION_PT_ExportPanel(bpy.types.Panel):
 
         layout.prop(studiotools, "selected_collection", text="Root")
         layout.prop(studiotools_animation, "animation_name", text="Name")
-        layout.prop(studiotools_animation, "export_path", text="Export Path")
+        
+        if not os.environ["INPIPE"]:
+            layout.prop(studiotools_animation, "export_path", text="Export Path")
 
         layout.operator("studiotools_animation.export", text="Export Asset", icon='EXPORT')
 

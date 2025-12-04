@@ -1,5 +1,6 @@
 import bpy # type: ignore
 from .. import utils as global_utils
+import os
 
 class STUDIOTOOLS_ASSET_PT_AssetPanel(bpy.types.Panel):
     """Creates a Panel in the 3D View sidebar"""
@@ -110,7 +111,9 @@ class STUDIOTOOLS_ASSET_PT_ExportPanel(bpy.types.Panel):
 
         label = "Objects" if studiotools.selection_type == "OBJ" else "Collection"
         layout.prop(studiotools_asset, "asset_name", text="Name")
-        layout.prop(studiotools_asset, "export_path", text="Export Path")
+
+        if not os.environ["INPIPE"]:
+            layout.prop(studiotools_asset, "export_path", text="Export Path")
         
         layout.operator("studiotools_asset.validate", text=f"Validate {label}", icon='FAKE_USER_ON')
         layout.operator("studiotools_asset.export", text="Export Asset", icon='EXPORT')

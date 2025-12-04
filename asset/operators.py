@@ -183,9 +183,16 @@ class STUDIOTOOLS_ASSET_OT_Export(bpy.types.Operator):
             
         version = global_utils.get_current_version()
 
+        task = os.path.dirname(os.path.dirname(os.path.dirname(blend_filepath)))
+        versions_folder = os.path.join(task, "versions")
+
+        export_folder = versions_folder
+        if not os.environ["INPIPE"]:
+            export_folder = studiotools_asset.export_path
+
         asset_folder = f"{studiotools_asset.asset_name}_v{version:03d}"
     
-        filepath = os.path.abspath(os.path.join(studiotools_asset.export_path, asset_folder))
+        filepath = os.path.abspath(os.path.join(export_folder, asset_folder))
 
         success = io.export(filepath=filepath, root_collection=studiotools.selected_collection, export_asset=True)   
         if success:
