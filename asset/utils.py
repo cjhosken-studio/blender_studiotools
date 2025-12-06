@@ -2,7 +2,16 @@ import bpy # type: ignore
 import bmesh # type: ignore
 import random
 import re
+import hashlib
 from .. import utils
+
+def color_from_tag(tag_name):
+    """Generate a deterministic RGB color from a tag name."""
+    h = hashlib.md5(tag_name.encode("utf-8")).hexdigest()
+    r = int(h[0:2], 16) / 255.0
+    g = int(h[2:4], 16) / 255.0
+    b = int(h[4:6], 16) / 255.0
+    return (r, g, b, 1.0)  # RGBA
 
 def find_unique_name(base_name, existing_names, padding=4):
     """Generate a unique name by appending numbers if needed"""
@@ -43,12 +52,8 @@ def refresh_shader_tags(context):
         if not material:
             material = bpy.data.materials.new(name=material_name)
             material.use_nodes = True
-
-            r = random.uniform(0.2, 1.0)
-            g = random.uniform(0.2, 1.0)
-            b = random.uniform(0.2, 1.0)
             
-            material.diffuse_color = (r, g, b, 1.0)
+            material.diffuse_color = color_from_tag(tag.name)
 
     for material in bpy.data.materials:
         material_name = material.name
