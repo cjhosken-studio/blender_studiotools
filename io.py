@@ -64,9 +64,9 @@ def export_blend(filepath="./scene.blend", root_collection=None):
     
     return True
 
-def export(filepath="./", root_collection=None, export_asset=False, export_animation=False, thumbnail=True):
+def export(filepath="./", name="asset_v001", root_collection=None, export_asset=False, export_animation=False, thumbnail=True):
     if root_collection:
-        usd_path = os.path.join(os.path.abspath(filepath), "stage.usd")
+        usd_path = os.path.join(os.path.abspath(filepath), f"{name}.usd")
         success = export_usd(filepath=usd_path, root_collection=root_collection, export_asset=export_asset, export_animation=export_animation)
         if success:
             success = export_blend(filepath=os.path.join(os.path.abspath(filepath), "scene.blend"), root_collection=root_collection)
@@ -90,6 +90,7 @@ def export(filepath="./", root_collection=None, export_asset=False, export_anima
             metadata = {
                 "root": usd_path,
                 "type": "usd",
+                "author": bpy.data.filepath,
                 "version": utils.get_current_version()
             }
             

@@ -194,7 +194,7 @@ class STUDIOTOOLS_ASSET_OT_Export(bpy.types.Operator):
     
         filepath = os.path.abspath(os.path.join(export_folder, asset_folder))
 
-        success = io.export(filepath=filepath, root_collection=studiotools.selected_collection, export_asset=True)   
+        success = io.export(filepath=filepath, name=asset_folder, root_collection=studiotools.selected_collection, export_asset=True)   
         if success:
             global_utils.show_popup("Export Complete!", f"Asset exported to {filepath}", "INFO")
             global_utils.save_version()

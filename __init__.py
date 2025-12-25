@@ -12,9 +12,9 @@ bl_info = {
 
 import bpy # type: ignore
 from . import qt
-from . import topmenu, asset, animation
+from . import topmenu, asset
 
-modules = [topmenu, asset, animation]
+modules = [topmenu, asset]
 
 class STUDIOTOOLS_Properties(bpy.types.PropertyGroup):
     selection_type: bpy.props.EnumProperty(
