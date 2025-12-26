@@ -9,7 +9,7 @@ def get_latest_version():
     if not filepath:
         return 0
     
-    wip_folder = os.path.dirname(filepath)
+    wip_folder = os.path.dirname(os.path.dirname(filepath))
     version_pattern = re.compile(r'_v(\d+)$', re.IGNORECASE)
     
     max_version = 0
