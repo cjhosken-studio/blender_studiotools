@@ -94,24 +94,6 @@ class WM_OT_studiotools_publish_usd(Operator):
     bl_label = "Publish USD Asset"
     bl_description = "Export the current scene as a published USD asset"
     
-    asset_name: StringProperty(
-        name="Asset Name",
-        description="Name of the published asset (e.g. character, prop, scene)",
-        default="scene"
-    )
-    
-    def invoke(self, context, event):
-        # Default to current Blend file name (sans extension)
-        blend_name = os.path.splitext(os.path.basename(bpy.data.filepath))[0] if bpy.data.filepath else ""
-        if blend_name and blend_name != "untitled":
-            # Strip version suffix (e.g. _v001 or _v1) from default asset name prompt
-            clean_name = re.sub(r"_v\d+$", "", blend_name, flags=re.IGNORECASE)
-            # Clean name for filesystem safety
-            self.asset_name = re.sub(r"[^a-zA-Z0-9_]", "_", clean_name)
-        else:
-            self.asset_name = "scene"
-        return context.window_manager.invoke_props_dialog(self)
-    
     def execute(self, context):
         task_path = os.environ.get("ST_CWD")
         if not task_path:
@@ -123,36 +105,34 @@ class WM_OT_studiotools_publish_usd(Operator):
             bpy.ops.wm.save_mainfile()
             current_blend = bpy.data.filepath
             
-            # 2. Determine published directory packaged in a folder
-            published_dir = os.path.join(task_path, "published")
-            os.makedirs(published_dir, exist_ok=True)
+            # 2. Determine versions directory packaged in a folder
+            versions_dir = os.path.join(task_path, "versions")
+            os.makedirs(versions_dir, exist_ok=True)
             
-            # 3. Determine next version by scanning directory folders
+            # 3. Determine next version by scanning versions directory folders
             version = 1
-            asset_prefix = self.asset_name.strip()
+            asset_prefix = context.scene.studiotools_asset_name.strip()
             if not asset_prefix:
                 asset_prefix = "scene"
             # Strip any version suffix (e.g. _v001, -v1, v3) entered by the user
             asset_prefix = re.sub(r"[._-]?v\d+$", "", asset_prefix, flags=re.IGNORECASE)
             asset_prefix = re.sub(r"[^a-zA-Z0-9_]", "_", asset_prefix)
             
-            if os.path.exists(published_dir):
-                for f in os.listdir(published_dir):
-                    if os.path.isdir(os.path.join(published_dir, f)):
+            if os.path.exists(versions_dir):
+                for f in os.listdir(versions_dir):
+                    if os.path.isdir(os.path.join(versions_dir, f)):
                         match = re.search(rf"^{re.escape(asset_prefix)}_v(\d+)", f, re.IGNORECASE)
                         if match:
                             version = max(version, int(match.group(1)) + 1)
                         
             version_folder = f"{asset_prefix}_v{version:03d}"
-            version_dir = os.path.join(published_dir, version_folder)
+            version_dir = os.path.join(versions_dir, version_folder)
             os.makedirs(version_dir, exist_ok=True)
             
             pub_filename = f"{asset_prefix}_v{version:03d}.usda"
             pub_filepath = os.path.join(version_dir, pub_filename)
             
             # 4. Export scene as USD (USDA ascii layout for human readable composition verification)
-            # Query accepted export properties to avoid unrecognized keyword errors across Blender versions,
-            # dynamically excluding the World background, lights, and cameras if supported.
             export_props = bpy.ops.wm.usd_export.get_rna_type().properties
             kwargs = {}
             if "export_world" in export_props:
@@ -161,8 +141,36 @@ class WM_OT_studiotools_publish_usd(Operator):
                 kwargs["export_lights"] = False
             if "export_cameras" in export_props:
                 kwargs["export_cameras"] = False
+            if "up_axis" in export_props:
+                kwargs["up_axis"] = 'Y'
+            if "export_materials" in export_props:
+                kwargs["export_materials"] = False
+            if "export_animation" in export_props:
+                kwargs["export_animation"] = False
+            if "export_hair" in export_props:
+                kwargs["export_hair"] = True
+            if "export_custom_properties" in export_props:
+                kwargs["export_custom_properties"] = True
+            if "custom_properties_namespace" in export_props:
+                kwargs["custom_properties_namespace"] = ""
+            if "author_blender_name" in export_props:
+                kwargs["author_blender_name"] = False
+            if "merge_parent_xform" in export_props:
+                kwargs["merge_parent_xform"] = True
+
                 
             bpy.ops.wm.usd_export(filepath=pub_filepath, **kwargs)
+            
+            # Save a copy of the active .blend file inside the version directory
+            if current_blend and os.path.exists(current_blend):
+                import shutil
+                blend_copy_name = f"{asset_prefix}_v{version:03d}.blend"
+                blend_copy_path = os.path.join(version_dir, blend_copy_name)
+                try:
+                    shutil.copy2(current_blend, blend_copy_path)
+                    print(f"[Studio Tools] Exported .blend copy to: {blend_copy_path}")
+                except Exception as bce:
+                    print(f"[Studio Tools] Warning: Failed to export .blend copy: {bce}")
             
             # 5. Write metadata
             meta_path = os.path.join(version_dir, "metadata.yaml")
@@ -171,13 +179,34 @@ class WM_OT_studiotools_publish_usd(Operator):
             meta_data = {
                 "type": "usd_publish",
                 "application": "blender",
-                "application_version": bpy.app.version_string,
+                "application_version": os.environ.get("ST_APP_VERSION") or bpy.app.version_string,
                 "source_file": os.path.basename(current_blend) if current_blend else "unsaved.blend",
                 "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "user": os.environ.get("USER", "artist"),
                 "exported_root_objects": exported_objs
             }
             write_simple_yaml(meta_path, meta_data)
+            
+            # Create symlink if "Mark as Published" is checked
+            mark_as_published = context.scene.studiotools_mark_as_published
+            if mark_as_published:
+                published_dir = os.path.join(task_path, "published")
+                os.makedirs(published_dir, exist_ok=True)
+                symlink_path = os.path.join(published_dir, asset_prefix)
+                
+                if os.path.islink(symlink_path) or os.path.exists(symlink_path):
+                    if os.path.isdir(symlink_path) and not os.path.islink(symlink_path):
+                        import shutil
+                        shutil.rmtree(symlink_path)
+                    else:
+                        os.remove(symlink_path)
+                        
+                src = os.path.join("..", "versions", version_folder)
+                try:
+                    os.symlink(src, symlink_path)
+                    print(f"[Studio Tools] Created published symlink: {symlink_path} -> {src}")
+                except Exception as se:
+                    print(f"[Studio Tools] Warning: Failed to create symlink: {se}")
             
             # 6. Version up the WIP scene file (Save-up on publish)
             wip_version_msg = ""
@@ -218,6 +247,126 @@ class WM_OT_studiotools_publish_usd(Operator):
             self.report({'ERROR'}, f"Failed to publish USD: {str(e)}")
             return {'CANCELLED'}
 
+# --- File Load/Save handler to set default asset name ---
+def update_default_asset_name(dummy1=None, dummy2=None):
+    """Automatically updates the default asset name to match the blend file name on load/save."""
+    if not IN_BLENDER:
+        return
+    try:
+        current_file = bpy.data.filepath
+        if current_file:
+            # Only update if it is currently the default "scene"
+            scene = bpy.context.scene
+            if scene and scene.studiotools_asset_name == "scene":
+                blend_name = os.path.splitext(os.path.basename(current_file))[0]
+                if blend_name and blend_name != "untitled":
+                    clean_name = re.sub(r"[._-]?v\d+$", "", blend_name, flags=re.IGNORECASE)
+                    scene.studiotools_asset_name = re.sub(r"[^a-zA-Z0-9_]", "_", clean_name)
+    except Exception as e:
+        print(f"[Studio Tools] Warning: Failed to update default asset name: {e}")
+
+if IN_BLENDER:
+    @bpy.app.handlers.persistent
+    def update_default_asset_name_handler(dummy1=None, dummy2=None):
+        update_default_asset_name()
+
+# --- Shader Tagging Operators ---
+
+class WM_OT_studiotools_add_tag_to_list(Operator):
+    """Add a new shader tag to the available tags list"""
+    bl_idname = "wm.studiotools_add_tag_to_list"
+    bl_label = "Add Tag"
+    bl_description = "Add a new shader tag to the list"
+    
+    def execute(self, context):
+        new_tag = context.scene.studiotools_new_tag_name.strip()
+        if not new_tag:
+            self.report({'WARNING'}, "Tag name cannot be empty.")
+            return {'CANCELLED'}
+            
+        new_tag = re.sub(r"[^a-zA-Z0-9_]", "_", new_tag)
+        
+        tags = [t.strip() for t in context.scene.studiotools_shader_tags.split(",") if t.strip()]
+        if new_tag in tags:
+            self.report({'WARNING'}, f"Tag '{new_tag}' already exists.")
+            return {'CANCELLED'}
+            
+        tags.append(new_tag)
+        context.scene.studiotools_shader_tags = ",".join(tags)
+        context.scene.studiotools_new_tag_name = ""
+        return {'FINISHED'}
+
+class WM_OT_studiotools_remove_tag_from_list(Operator):
+    """Remove a shader tag from the available tags list"""
+    bl_idname = "wm.studiotools_remove_tag_from_list"
+    bl_label = "Remove Tag"
+    bl_description = "Remove a shader tag from the available list"
+    
+    tag_name: bpy.props.StringProperty()
+    
+    def execute(self, context):
+        tags = [t.strip() for t in context.scene.studiotools_shader_tags.split(",") if t.strip()]
+        if self.tag_name in tags:
+            tags.remove(self.tag_name)
+            context.scene.studiotools_shader_tags = ",".join(tags)
+            self.report({'INFO'}, f"Removed tag '{self.tag_name}' from list.")
+            return {'FINISHED'}
+        return {'CANCELLED'}
+
+class WM_OT_studiotools_assign_shader_tag(Operator):
+    """Assign a shader tag to the selected mesh objects"""
+    bl_idname = "wm.studiotools_assign_shader_tag"
+    bl_label = "Assign Tag"
+    bl_description = "Assign this shader tag custom property to the selected mesh objects"
+    
+    tag_name: bpy.props.StringProperty()
+    
+    def execute(self, context):
+        selected_meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        if not selected_meshes:
+            self.report({'WARNING'}, "No mesh objects selected.")
+            return {'CANCELLED'}
+            
+        mat_name = "st_base_mtl"
+        mat = bpy.data.materials.get(mat_name)
+        if not mat:
+            mat = bpy.data.materials.new(name=mat_name)
+            mat.use_nodes = True
+            mat.diffuse_color = (0.2, 0.6, 1.0, 1.0)
+            
+        count = 0
+        for obj in selected_meshes:
+            obj["shaderTag"] = self.tag_name
+            if len(obj.data.materials) == 0:
+                obj.data.materials.append(mat)
+            else:
+                obj.data.materials[0] = mat
+            count += 1
+            
+        self.report({'INFO'}, f"Assigned tag '{self.tag_name}' to {count} mesh object(s).")
+        return {'FINISHED'}
+
+class WM_OT_studiotools_clear_shader_tag(Operator):
+    """Clear shader tag from the selected mesh objects"""
+    bl_idname = "wm.studiotools_clear_shader_tag"
+    bl_label = "Clear Tag"
+    bl_description = "Remove the shader tag custom property from selected objects"
+    
+    def execute(self, context):
+        selected_meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        if not selected_meshes:
+            self.report({'WARNING'}, "No mesh objects selected.")
+            return {'CANCELLED'}
+            
+        count = 0
+        for obj in selected_meshes:
+            if "shaderTag" in obj:
+                del obj["shaderTag"]
+                count += 1
+                
+        self.report({'INFO'}, f"Cleared shader tag from {count} object(s).")
+        return {'FINISHED'}
+
 # --- Panel UI ---
 
 class VIEW3D_PT_studiotools_pipeline(Panel):
@@ -249,29 +398,108 @@ class VIEW3D_PT_studiotools_pipeline(Panel):
             
         layout.separator()
         
-        # Load & Publish Buttons
-        col = layout.column(align=True)
-        col.operator("wm.studiotools_load_usd", icon='IMPORT', text="Load USD Asset...")
-        col.separator()
-        col.operator("wm.studiotools_publish_usd", icon='EXPORT', text="Publish USD Asset...")
+        box_publish = layout.box()
+        box_publish.label(text="USD Export Settings", icon='EXPORT')
+        box_publish.prop(context.scene, "studiotools_asset_name", text="Asset Name")
+        box_publish.prop(context.scene, "studiotools_mark_as_published", text="Mark as Published")
+        box_publish.operator("wm.studiotools_publish_usd", icon='EXPORT', text="Publish USD Asset")
+
+        layout.separator()
+
+        box_tagging = layout.box()
+        box_tagging.label(text="Shader Tagging", icon='MATERIAL')
+        
+        row = box_tagging.row(align=True)
+        row.prop(context.scene, "studiotools_new_tag_name", text="")
+        row.operator("wm.studiotools_add_tag_to_list", text="Add Tag", icon='ADD')
+        
+        tags = [t.strip() for t in context.scene.studiotools_shader_tags.split(",") if t.strip()]
+        if tags:
+            col = box_tagging.column(align=True)
+            for t in tags:
+                row = col.row(align=True)
+                row.label(text=t, icon='TAG')
+                op_assign = row.operator("wm.studiotools_assign_shader_tag", text="Assign")
+                op_assign.tag_name = t
+                op_remove = row.operator("wm.studiotools_remove_tag_from_list", text="", icon='TRASH')
+                op_remove.tag_name = t
+        else:
+            box_tagging.label(text="No tags created yet.", icon='INFO')
+            
+        active_obj = context.active_object
+        if active_obj and active_obj.type == 'MESH':
+            box_status = box_tagging.box()
+            box_status.label(text=f"Active Mesh: {active_obj.name}", icon='OUTLINER_OB_MESH')
+            current_tag = active_obj.get("shaderTag", "")
+            if current_tag:
+                box_status.label(text=f"Assigned Tag: {current_tag}", icon='CHECKMARK')
+                box_status.operator("wm.studiotools_clear_shader_tag", text="Clear Tag", icon='REMOVE')
+            else:
+                box_status.label(text="No shader tag assigned.", icon='INFO')
 
 # --- Registration & Initialization ---
 
 classes = [
     WM_OT_studiotools_load_usd,
     WM_OT_studiotools_publish_usd,
+    WM_OT_studiotools_add_tag_to_list,
+    WM_OT_studiotools_remove_tag_from_list,
+    WM_OT_studiotools_assign_shader_tag,
+    WM_OT_studiotools_clear_shader_tag,
     VIEW3D_PT_studiotools_pipeline
 ]
 
 def register():
     if not IN_BLENDER:
         return
+    
+    # Register scene properties
+    bpy.types.Scene.studiotools_asset_name = bpy.props.StringProperty(
+        name="Asset Name",
+        description="Name of the published asset (e.g. character, prop, scene)",
+        default="scene"
+    )
+    bpy.types.Scene.studiotools_mark_as_published = bpy.props.BoolProperty(
+        name="Mark as Published",
+        description="Create a published symlink in published/ pointing to this version",
+        default=True
+    )
+    bpy.types.Scene.studiotools_new_tag_name = bpy.props.StringProperty(
+        name="New Tag Name",
+        description="Name of the shader tag to create",
+        default=""
+    )
+    bpy.types.Scene.studiotools_shader_tags = bpy.props.StringProperty(
+        name="Shader Tags",
+        description="List of available shader tags (comma separated)",
+        default="card,metal,glass,plastic"
+    )
+
     for cls in classes:
         bpy.utils.register_class(cls)
+
+    # Register handlers
+    if update_default_asset_name_handler not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(update_default_asset_name_handler)
+    if update_default_asset_name_handler not in bpy.app.handlers.save_post:
+        bpy.app.handlers.save_post.append(update_default_asset_name_handler)
 
 def unregister():
     if not IN_BLENDER:
         return
+        
+    # Unregister handlers
+    if update_default_asset_name_handler in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(update_default_asset_name_handler)
+    if update_default_asset_name_handler in bpy.app.handlers.save_post:
+        bpy.app.handlers.save_post.remove(update_default_asset_name_handler)
+
+    # Unregister scene properties
+    del bpy.types.Scene.studiotools_asset_name
+    del bpy.types.Scene.studiotools_mark_as_published
+    del bpy.types.Scene.studiotools_new_tag_name
+    del bpy.types.Scene.studiotools_shader_tags
+
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
@@ -319,6 +547,18 @@ def init_blender_scene():
                 print(f"[Studio Tools] Loaded existing version file on startup: {save_path}")
             except Exception as e:
                 print(f"[Studio Tools] Failed to load BLEND file: {e}")
+
+    # Update default asset name to match current file name
+    update_default_asset_name()
+
+    # Preload USD file if set in environment variable
+    preload_usd = os.environ.get("ST_PRELOAD_USD")
+    if preload_usd and os.path.exists(preload_usd):
+        try:
+            bpy.ops.wm.usd_import(filepath=preload_usd)
+            print(f"[Studio Tools] Preloaded USD on startup: {preload_usd}")
+        except Exception as e:
+            print(f"[Studio Tools] Failed to preload USD on startup: {e}")
                 
     print("------------------------------------------------------------------")
     print("  [Studio Tools Pipeline] Ready!")
