@@ -129,35 +129,74 @@ class WM_OT_studiotools_publish_usd(Operator):
             version_dir = os.path.join(versions_dir, version_folder)
             os.makedirs(version_dir, exist_ok=True)
             
-            pub_filename = f"{asset_prefix}_v{version:03d}.usda"
+            export_as_usdc = context.scene.studiotools_export_usdc
+            usd_ext = ".usdc" if export_as_usdc else ".usda"
+            pub_filename = f"{asset_prefix}_v{version:03d}{usd_ext}"
             pub_filepath = os.path.join(version_dir, pub_filename)
             
             # 4. Export scene as USD (USDA ascii layout for human readable composition verification)
             export_props = bpy.ops.wm.usd_export.get_rna_type().properties
             kwargs = {}
-            if "export_world" in export_props:
-                kwargs["export_world"] = False
-            if "export_lights" in export_props:
-                kwargs["export_lights"] = False
-            if "export_cameras" in export_props:
-                kwargs["export_cameras"] = False
-            if "up_axis" in export_props:
-                kwargs["up_axis"] = 'Y'
-            if "export_materials" in export_props:
-                kwargs["export_materials"] = False
+            # Use the "Export Animation" checkbox setting
+            export_animation = context.scene.studiotools_export_animation
             if "export_animation" in export_props:
-                kwargs["export_animation"] = False
+                kwargs["export_animation"] = export_animation
             if "export_hair" in export_props:
                 kwargs["export_hair"] = True
+            if "export_uvmaps" in export_props:
+                kwargs["export_uvmaps"] = True
+            if "rename_uvmaps" in export_props:
+                kwargs["rename_uvmaps"] = True
+            if "export_mesh_colors" in export_props:
+                kwargs["export_mesh_colors"] = True
+            if "export_normals" in export_props:
+                kwargs["export_normals"] = True
+            if "export_materials" in export_props:
+                kwargs["export_materials"] = False
+            if "export_subdivision" in export_props:
+                kwargs["export_subdivision"] = "BEST_MATCH"
+            if "export_armatures" in export_props:
+                kwargs["export_armatures"] = True
+            if "only_deform_bones" in export_props:
+                kwargs["only_deform_bones"] = True
+            if "export_shapekeys" in export_props:
+                kwargs["export_shapekeys"] = True
+            if "use_instancing" in export_props:
+                kwargs["use_instancing"] = True
+            if "evaluation_mode" in export_props:
+                kwargs["evaluation_mode"] = "RENDER"
+            if "generate_preview_surface" in export_props:
+                kwargs["generate_preview_surface"] = True
+            if "generate_materialx_network" in export_props:
+                kwargs["generate_materialx_network"] = False
+            if "convert_orientation" in export_props:
+                kwargs["convert_orientation"] = True
             if "export_custom_properties" in export_props:
                 kwargs["export_custom_properties"] = True
             if "custom_properties_namespace" in export_props:
                 kwargs["custom_properties_namespace"] = ""
             if "author_blender_name" in export_props:
                 kwargs["author_blender_name"] = False
+            if "convert_world_material" in export_props:
+                kwargs["convert_world_material"] = False
+            if "export_meshes" in export_props:
+                kwargs["export_meshes"] = True
+            if "export_lights" in export_props:
+                kwargs["export_lights"] = True
+            if "export_cameras" in export_props:
+                kwargs["export_cameras"] = True
+            if "export_curves" in export_props:
+                kwargs["export_curves"] = True
+            if "export_points" in export_props:
+                kwargs["export_points"] = True
+            if "export_volumes" in export_props:
+                kwargs["export_volumes"] = True
             if "merge_parent_xform" in export_props:
                 kwargs["merge_parent_xform"] = True
-
+            if "convert_scene_unit" in export_props:
+                kwargs["convert_scene_unit"] = "METERS"
+            if "meters_per_unit" in export_props:
+                kwargs["meters_per_unit"] = 1.0
                 
             bpy.ops.wm.usd_export(filepath=pub_filepath, **kwargs)
             
@@ -270,103 +309,6 @@ if IN_BLENDER:
     def update_default_asset_name_handler(dummy1=None, dummy2=None):
         update_default_asset_name()
 
-# --- Shader Tagging Operators ---
-
-class WM_OT_studiotools_add_tag_to_list(Operator):
-    """Add a new shader tag to the available tags list"""
-    bl_idname = "wm.studiotools_add_tag_to_list"
-    bl_label = "Add Tag"
-    bl_description = "Add a new shader tag to the list"
-    
-    def execute(self, context):
-        new_tag = context.scene.studiotools_new_tag_name.strip()
-        if not new_tag:
-            self.report({'WARNING'}, "Tag name cannot be empty.")
-            return {'CANCELLED'}
-            
-        new_tag = re.sub(r"[^a-zA-Z0-9_]", "_", new_tag)
-        
-        tags = [t.strip() for t in context.scene.studiotools_shader_tags.split(",") if t.strip()]
-        if new_tag in tags:
-            self.report({'WARNING'}, f"Tag '{new_tag}' already exists.")
-            return {'CANCELLED'}
-            
-        tags.append(new_tag)
-        context.scene.studiotools_shader_tags = ",".join(tags)
-        context.scene.studiotools_new_tag_name = ""
-        return {'FINISHED'}
-
-class WM_OT_studiotools_remove_tag_from_list(Operator):
-    """Remove a shader tag from the available tags list"""
-    bl_idname = "wm.studiotools_remove_tag_from_list"
-    bl_label = "Remove Tag"
-    bl_description = "Remove a shader tag from the available list"
-    
-    tag_name: bpy.props.StringProperty()
-    
-    def execute(self, context):
-        tags = [t.strip() for t in context.scene.studiotools_shader_tags.split(",") if t.strip()]
-        if self.tag_name in tags:
-            tags.remove(self.tag_name)
-            context.scene.studiotools_shader_tags = ",".join(tags)
-            self.report({'INFO'}, f"Removed tag '{self.tag_name}' from list.")
-            return {'FINISHED'}
-        return {'CANCELLED'}
-
-class WM_OT_studiotools_assign_shader_tag(Operator):
-    """Assign a shader tag to the selected mesh objects"""
-    bl_idname = "wm.studiotools_assign_shader_tag"
-    bl_label = "Assign Tag"
-    bl_description = "Assign this shader tag custom property to the selected mesh objects"
-    
-    tag_name: bpy.props.StringProperty()
-    
-    def execute(self, context):
-        selected_meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
-        if not selected_meshes:
-            self.report({'WARNING'}, "No mesh objects selected.")
-            return {'CANCELLED'}
-            
-        mat_name = "st_base_mtl"
-        mat = bpy.data.materials.get(mat_name)
-        if not mat:
-            mat = bpy.data.materials.new(name=mat_name)
-            mat.use_nodes = True
-            mat.diffuse_color = (0.2, 0.6, 1.0, 1.0)
-            
-        count = 0
-        for obj in selected_meshes:
-            obj["shaderTag"] = self.tag_name
-            if len(obj.data.materials) == 0:
-                obj.data.materials.append(mat)
-            else:
-                obj.data.materials[0] = mat
-            count += 1
-            
-        self.report({'INFO'}, f"Assigned tag '{self.tag_name}' to {count} mesh object(s).")
-        return {'FINISHED'}
-
-class WM_OT_studiotools_clear_shader_tag(Operator):
-    """Clear shader tag from the selected mesh objects"""
-    bl_idname = "wm.studiotools_clear_shader_tag"
-    bl_label = "Clear Tag"
-    bl_description = "Remove the shader tag custom property from selected objects"
-    
-    def execute(self, context):
-        selected_meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
-        if not selected_meshes:
-            self.report({'WARNING'}, "No mesh objects selected.")
-            return {'CANCELLED'}
-            
-        count = 0
-        for obj in selected_meshes:
-            if "shaderTag" in obj:
-                del obj["shaderTag"]
-                count += 1
-                
-        self.report({'INFO'}, f"Cleared shader tag from {count} object(s).")
-        return {'FINISHED'}
-
 # --- Panel UI ---
 
 class VIEW3D_PT_studiotools_pipeline(Panel):
@@ -401,51 +343,16 @@ class VIEW3D_PT_studiotools_pipeline(Panel):
         box_publish = layout.box()
         box_publish.label(text="USD Export Settings", icon='EXPORT')
         box_publish.prop(context.scene, "studiotools_asset_name", text="Asset Name")
+        box_publish.prop(context.scene, "studiotools_export_animation", text="Export Animation")
+        box_publish.prop(context.scene, "studiotools_export_usdc", text="Export as USDC (binary cache)")
         box_publish.prop(context.scene, "studiotools_mark_as_published", text="Mark as Published")
         box_publish.operator("wm.studiotools_publish_usd", icon='EXPORT', text="Publish USD Asset")
-
-        layout.separator()
-
-        box_tagging = layout.box()
-        box_tagging.label(text="Shader Tagging", icon='MATERIAL')
-        
-        row = box_tagging.row(align=True)
-        row.prop(context.scene, "studiotools_new_tag_name", text="")
-        row.operator("wm.studiotools_add_tag_to_list", text="Add Tag", icon='ADD')
-        
-        tags = [t.strip() for t in context.scene.studiotools_shader_tags.split(",") if t.strip()]
-        if tags:
-            col = box_tagging.column(align=True)
-            for t in tags:
-                row = col.row(align=True)
-                row.label(text=t, icon='TAG')
-                op_assign = row.operator("wm.studiotools_assign_shader_tag", text="Assign")
-                op_assign.tag_name = t
-                op_remove = row.operator("wm.studiotools_remove_tag_from_list", text="", icon='TRASH')
-                op_remove.tag_name = t
-        else:
-            box_tagging.label(text="No tags created yet.", icon='INFO')
-            
-        active_obj = context.active_object
-        if active_obj and active_obj.type == 'MESH':
-            box_status = box_tagging.box()
-            box_status.label(text=f"Active Mesh: {active_obj.name}", icon='OUTLINER_OB_MESH')
-            current_tag = active_obj.get("shaderTag", "")
-            if current_tag:
-                box_status.label(text=f"Assigned Tag: {current_tag}", icon='CHECKMARK')
-                box_status.operator("wm.studiotools_clear_shader_tag", text="Clear Tag", icon='REMOVE')
-            else:
-                box_status.label(text="No shader tag assigned.", icon='INFO')
 
 # --- Registration & Initialization ---
 
 classes = [
     WM_OT_studiotools_load_usd,
     WM_OT_studiotools_publish_usd,
-    WM_OT_studiotools_add_tag_to_list,
-    WM_OT_studiotools_remove_tag_from_list,
-    WM_OT_studiotools_assign_shader_tag,
-    WM_OT_studiotools_clear_shader_tag,
     VIEW3D_PT_studiotools_pipeline
 ]
 
@@ -464,15 +371,15 @@ def register():
         description="Create a published symlink in published/ pointing to this version",
         default=True
     )
-    bpy.types.Scene.studiotools_new_tag_name = bpy.props.StringProperty(
-        name="New Tag Name",
-        description="Name of the shader tag to create",
-        default=""
+    bpy.types.Scene.studiotools_export_animation = bpy.props.BoolProperty(
+        name="Export Animation",
+        description="Export animation frames in the USD file",
+        default=False
     )
-    bpy.types.Scene.studiotools_shader_tags = bpy.props.StringProperty(
-        name="Shader Tags",
-        description="List of available shader tags (comma separated)",
-        default="card,metal,glass,plastic"
+    bpy.types.Scene.studiotools_export_usdc = bpy.props.BoolProperty(
+        name="Export as USDC",
+        description="Export as binary USDC instead of human-readable USDA (recommended for heavy caches)",
+        default=False
     )
 
     for cls in classes:
@@ -497,8 +404,8 @@ def unregister():
     # Unregister scene properties
     del bpy.types.Scene.studiotools_asset_name
     del bpy.types.Scene.studiotools_mark_as_published
-    del bpy.types.Scene.studiotools_new_tag_name
-    del bpy.types.Scene.studiotools_shader_tags
+    del bpy.types.Scene.studiotools_export_animation
+    del bpy.types.Scene.studiotools_export_usdc
 
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
@@ -551,14 +458,8 @@ def init_blender_scene():
     # Update default asset name to match current file name
     update_default_asset_name()
 
-    # Preload USD file if set in environment variable
-    preload_usd = os.environ.get("ST_PRELOAD_USD")
-    if preload_usd and os.path.exists(preload_usd):
-        try:
-            bpy.ops.wm.usd_import(filepath=preload_usd)
-            print(f"[Studio Tools] Preloaded USD on startup: {preload_usd}")
-        except Exception as e:
-            print(f"[Studio Tools] Failed to preload USD on startup: {e}")
+
+
                 
     print("------------------------------------------------------------------")
     print("  [Studio Tools Pipeline] Ready!")
